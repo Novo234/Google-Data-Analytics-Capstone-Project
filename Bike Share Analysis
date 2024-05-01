@@ -1,0 +1,166 @@
+install.packages('ggplot2')
+install.packages( 'lubridate')
+install.packages('tidyr')
+install.packages('readr')
+install.packages('data.table')
+install.packages('janitor')
+install.packages('dplyr')
+install.packages('tidyverse')
+
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+library(readr)
+library(data.table)
+library(janitor)
+library(dplyr)
+
+
+##importing datasets
+
+
+list.files(path = "../Documents")
+
+jan_2023 <- read_csv('../documents/202301-divvy-tripdata.csv')
+feb_2023 <- read_csv('../documents/202302-divvy-tripdata.csv')
+mar_2023 <- read_csv('../documents/202303-divvy-tripdata.csv')
+april_2023 <- read_csv('../documents/202304-divvy-tripdata.csv')
+may_2023 <- read_csv('../documents/202305-divvy-tripdata.csv')
+june_2023 <- read_csv('../documents/202306-divvy-tripdata.csv')
+july_2023 <- read_csv('../documents/202307-divvy-tripdata.csv')
+aug_2023 <- read_csv('../documents/202308-divvy-tripdata.csv')
+sep_2023 <- read_csv('../documents/202309-divvy-tripdata.csv')
+oct_2023 <- read_csv('../documents/202310-divvy-tripdata.csv')
+nov_2023 <- read_csv('../documents/202311-divvy-tripdata.csv')
+dec_2023 <- read_csv('../documents/202312-divvy-tripdata.csv')
+
+
+glimpse(jan_2023)
+glimpse(feb_2023)
+glimpse(mar_2023)
+glimpse(april_2023)
+glimpse(may_2023)
+glimpse(june_2023)
+glimpse(july_2023)
+glimpse(aug_2023)
+glimpse(sep_2023)
+glimpse(oct_2023)
+glimpse(nov_2023)
+glimpse(dec_2023)
+
+merged_bike_data <- bind_rows(jan_2023, feb_2023, mar_2023, april_2023,
+                              may_2023, june_2023, july_2023, aug_2023, 
+                              sep_2023, oct_2023, nov_2023, dec_2023)
+
+
+colnames(merged_bike_data)  #List of column names
+nrow(merged_bike_data)  #How many rows are in data frame?
+dim(merged_bike_data)  #Dimensions of the data frame?
+head(merged_bike_data)  #See the first 6 rows of data frame.  Also tail(all_trips)
+str(merged_bike_data)  #See list of columns and data types (numeric, character, etc)
+summary(merge_bike_data)  #Statistical summary of data. Mainly for numerics
+
+
+# Add columns that list the date, month, day, and year of each ride
+# This will allow us to aggregate ride data for each month, day, or year ... before completing these operations we could only aggregate at the ride level
+
+merged_bike_data$date <- as.Date(merged_bike_data$started_at) #The default format is yyyy-mm-dd
+merged_bike_data$month <- format(as.Date(merged_bike_data$date), "%m")
+merged_bike_data$day <- format(as.Date(merged_bike_data$date), "%d")
+merged_bike_data$year <- format(as.Date(merged_bike_data$date), "%Y")
+merged_bike_data$day_of_week <- format(as.Date(merged_bike_data$date), "%A")
+
+## adding new column "ride_length" to the merged_data
+
+merged_bike_data$ride_length <- difftime(merged_bike_data$ended_at,merged_bike_data$started_at)
+
+##checking to see whether or not the new column has been successfully created
+
+colnames(merged_bike_data)
+
+glimpse(merged_bike_data)
+
+##converting "ridelength" column to numeric so as to enhance proper calculation.
+merged_bike_data$ride_length <- as.numeric(as.character(merged_bike_data$ride_length))
+is.numeric(merged_bike_data$ride_length)
+
+
+# Remove "bad" data
+# The dataframe includes a few hundred entries when bikes were taken out of docks and checked for quality by Divvy or ride_length was negative
+merged_bike_data <- merged_bike_data[!(merged_bike_data$start_station_name == "HQ QR" | merged_bike_data$ride_length<0),]
+
+
+##Dropping the null values
+
+cleaned_merged_data <- na.omit(merged_bike_data)
+
+nrow(cleaned_merged_data)
+
+
+# Descriptive analysis on ride_length (all figures in seconds)
+mean(cleaned_merged_data$ride_length) #straight average (total ride length / rides)
+median(cleaned_merged_data$ride_length) #midpoint number in the ascending array of ride lengths
+max(cleaned_merged_data$ride_length) #longest ride
+min(cleaned_merged_data$ride_length) #shortest ride
+
+
+# condensing the four lines above to one line using summary() on the specific attribute
+summary(cleaned_merged_data$ride_length)
+
+
+# Compare members and casual users
+aggregate(cleaned_merged_data$ride_length ~ cleaned_merged_data$member_casual, FUN = mean)
+aggregate(cleaned_merged_data$ride_length ~ cleaned_merged_data$member_casual, FUN = median)
+aggregate(cleaned_merged_data$ride_length ~ cleaned_merged_data$member_casual, FUN = max)
+aggregate(cleaned_merged_data$ride_length ~ cleaned_merged_data$member_casual, FUN = min)
+
+
+# Looking into the average ride time by each day for members vs casual users
+aggregate(cleaned_merged_data$ride_length ~ cleaned_merged_data$member_casual + cleaned_merged_data$day_of_week, FUN = mean)
+
+# Notice that the days of the week are out of order. Let's fix that.
+cleaned_merged_data$day_of_week <- ordered(cleaned_merged_data$day_of_week, levels=c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+
+
+# Now, let's run the average ride time by each day for members vs casual users
+aggregate(cleaned_merged_data$ride_length ~ cleaned_merged_data$member_casual + cleaned_merged_data$day_of_week, FUN = mean)
+
+# analyze ridership data by type and weekday
+cleaned_merged_data %>% 
+  #mutate(weekday = day_of_week(started_at, label = TRUE)) %>%  #creates weekday field using wday()
+  group_by(member_casual, day_of_week) %>%  #groups by usertype and weekday
+  summarise(number_of_rides = n()							#calculates the number of rides and average duration 
+            ,average_duration = mean(ride_length)) %>% 		# calculates the average duration
+  arrange(member_casual, day_of_week)								# sorts
+
+# Let's visualize the number of rides by rider type
+cleaned_merged_data %>% 
+  #mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, day_of_week) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, day_of_week)  %>% 
+  ggplot(aes(x = day_of_week, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")
+
+# Rideable type Vs total rides by Members and casual riders
+cleaned_merged_data%>%
+  group_by(rideable_type) %>% 
+  summarise(count = length(ride_id))
+ggplot(cleaned_merged_data, aes(x=rideable_type, fill=member_casual)) +
+  labs(x="Rideable type", title="Rideable type Vs. total rides by Members and casual riders") +
+  geom_bar()
+
+# Let's create a visualization for average duration
+cleaned_merged_data %>% 
+  #mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, day_of_week) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, day_of_week)  %>% 
+  ggplot(aes(x = day_of_week, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(title = "Average ride duration on daily basis")
+
+
